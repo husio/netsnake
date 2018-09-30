@@ -21,7 +21,10 @@ let app = new PIXI.Application({
 app.renderer.backgroundColor = 0x000
 app.stage.addChild(info)
 
-let ws = new WebSocket("ws://localhost:12345/ws")
+
+let ws = new WebSocket(
+  (document.location.protocol === "https:" ? "wss://" : "ws://") + document.location.host + "/ws"
+)
 
 ws.onmessage = function(ev) {
   let msg = JSON.parse(ev.data)
