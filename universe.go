@@ -13,7 +13,12 @@ import (
 
 func NewUniverse() *universe {
 	return &universe{
-		size:    vec2{X: 100, Y: 100},
+		size: vec2{X: 100, Y: 100},
+		apples: []apple{
+			{pos: vec2{X: 10, Y: 20}},
+			{pos: vec2{X: 36, Y: 11}},
+			{pos: vec2{X: 91, Y: 74}},
+		},
 		players: make(map[uint16]*player),
 		nextid:  1,
 	}
@@ -24,8 +29,13 @@ type universe struct {
 
 	sync.RWMutex
 
+	apples  []apple
 	players map[uint16]*player
 	nextid  uint16
+}
+
+type apple struct {
+	pos vec2
 }
 
 type player struct {
@@ -65,6 +75,15 @@ func (u *universe) AddPlayer(recv <-chan []byte) (send <-chan []byte, id uint16)
 	u.Unlock()
 
 	go func() {
+		b, err := json.Marshal([]uint16{3, p.id})
+		if err != nil {
+			log.Printf("cannot serialize initial player message: %s", err)
+		}
+		p.send <- b
+	}()
+
+	go func() {
+
 		for rawmsg := range recv {
 			msg := make([]int, 0, 8)
 			if err := json.Unmarshal(rawmsg, &msg); err != nil {
@@ -114,7 +133,7 @@ func (u *universe) DelPlayer(id uint16) {
 }
 
 func (u *universe) Run(ctx context.Context) error {
-	ticker := time.NewTicker(time.Second / 6)
+	ticker := time.NewTicker(time.Second / 10)
 	defer ticker.Stop()
 
 	for {
@@ -227,7 +246,12 @@ func removeLastChunk(s *snakechunk) {
 
 func (u *universe) serializeTo(b io.Writer) error {
 	u.RLock()
-	payload := make([][]uint16, 0, len(u.players))
+	payload := make([][]uint16, 1, len(u.players)+1)
+
+	for _, a := range u.apples {
+		payload[0] = append(payload[0], uint16(a.pos.X), uint16(a.pos.Y))
+	}
+
 	for _, p := range u.players {
 		snakeLen := 0
 		for c := p.head; c != nil; c = c.next {
