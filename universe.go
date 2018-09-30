@@ -74,7 +74,6 @@ func (u *universe) AddPlayer(recv <-chan []byte) (send <-chan []byte, id uint16)
 			default:
 				log.Printf("unknown message: %+v", msg)
 			case 1:
-				log.Printf("echo: %+v", msg)
 				select {
 				case p.send <- rawmsg:
 				default:
