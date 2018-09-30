@@ -24,7 +24,11 @@ func run() error {
 	http.Handle("/", http.FileServer(http.Dir(".")))
 	http.Handle("/ws", gameSocketHandler(u))
 
-	if err := http.ListenAndServe(":5000", nil); err != nil {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "12345"
+	}
+	if err := http.ListenAndServe(":"+port, nil); err != nil {
 		return fmt.Errorf("http: %s", err)
 	}
 	return nil
