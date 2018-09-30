@@ -7,29 +7,37 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"sync"
 	"time"
 )
 
 func NewUniverse() *universe {
-	return &universe{
-		size: vec2{X: 100, Y: 100},
-		apples: []apple{
-			{pos: vec2{X: 10, Y: 20}},
-			{pos: vec2{X: 36, Y: 11}},
-			{pos: vec2{X: 91, Y: 74}},
-		},
+	u := &universe{
+		rand:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		size:    vec2{X: 100, Y: 100},
 		players: make(map[uint16]*player),
 		nextid:  1,
 	}
+
+	for i := 0; i < 10; i++ {
+		u.apples = append(u.apples, &apple{
+			pos: vec2{
+				X: int16(u.rand.Intn(int(u.size.X))),
+				Y: int16(u.rand.Intn(int(u.size.Y))),
+			},
+		})
+	}
+	return u
 }
 
 type universe struct {
+	rand *rand.Rand
 	size vec2
 
 	sync.RWMutex
 
-	apples  []apple
+	apples  []*apple
 	players map[uint16]*player
 	nextid  uint16
 }
@@ -43,6 +51,7 @@ type player struct {
 	move vec2
 	head *snakechunk
 	dead bool
+	grow int
 
 	send chan []byte
 }
@@ -133,7 +142,7 @@ func (u *universe) DelPlayer(id uint16) {
 }
 
 func (u *universe) Run(ctx context.Context) error {
-	ticker := time.NewTicker(time.Second / 10)
+	ticker := time.NewTicker(time.Second / 8)
 	defer ticker.Stop()
 
 	for {
@@ -177,7 +186,11 @@ func (u *universe) tick() error {
 		if player.dead {
 			continue
 		}
-		removeLastChunk(player.head)
+		if player.grow == 0 {
+			removeLastChunk(player.head)
+		} else {
+			player.grow--
+		}
 		player.head = &snakechunk{
 			pos:  player.head.pos.Sum(player.move),
 			next: player.head,
@@ -223,6 +236,21 @@ func (u *universe) tick() error {
 						break checkTwoSnakeCollision
 					}
 				}
+			}
+		}
+	}
+
+	// Check if any apple is being eaten. Only head touch count.
+	for _, p := range u.players {
+		for _, a := range u.apples {
+			if p.head.pos.Eq(a.pos) {
+				p.grow++
+
+				// It is very costly to check if a position is
+				// free. Expect to be lucky.
+				a.pos.X = int16(u.rand.Intn(int(u.size.X)))
+				a.pos.Y = int16(u.rand.Intn(int(u.size.Y)))
+				break
 			}
 		}
 	}
