@@ -1,0 +1,116 @@
+<!doctype html>
+
+<style>* {padding: 0; margin: 0}</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/4.8.2/pixi.min.js" integrity="sha256-sBgvSt8H+9y7Z/5W2TIR0PnBUmBnREoh+4v06iK8aOQ=" crossorigin="anonymous"></script>
+
+
+<script>
+let cellsize = 8
+let snakes = {}
+let info = new PIXI.Text("", {fontSize: 12, fill : 0x00ffffff})
+info.x = 5
+info.y = 5
+
+
+let app = new PIXI.Application({
+  width: 100 * cellsize,
+  height: 100 * cellsize,
+  antialias: false,
+  resolution: 1,
+})
+app.renderer.backgroundColor = 0x000
+app.stage.addChild(info)
+
+let ws = new WebSocket("ws://localhost:12345/ws")
+
+ws.onmessage = function(ev) {
+  let msg = JSON.parse(ev.data)
+
+  switch (msg[0]) {
+  case 1:
+    handlePing(msg[1])
+    break
+  case 2:
+    handleGameState(msg[1])
+    break
+  default:
+    console.error("unknown message", msg[0])
+  }
+}
+
+function handleGameState(gameState) {
+  // Draw game state.
+  gameState.forEach(function(st) {
+    let playerID = st[0]
+    let dead = st[1] === 1
+
+    let snake = snakes[playerID]
+    if (!snake) {
+      snake = new PIXI.Graphics()
+      app.stage.addChild(snake)
+      snakes[playerID] = snake
+    }
+
+    snake.clear()
+    snake.lineStyle(cellsize / 2, 0xff0000, 1)
+
+    // Move to where the head is
+    snake.moveTo(st[2] * cellsize, st[3] * cellsize)
+    let chunks = st.slice(4)
+
+    for (var i=0;i<chunks.length;i+=2) {
+      snake.lineTo(chunks[i] * cellsize, chunks[i + 1] * cellsize)
+    }
+  })
+}
+
+ws.onclose = function(ev) {
+  console.log("close", ev)
+}
+
+ws.onerror = function(ev) {
+  console.log("error", ev)
+}
+
+
+
+window.addEventListener("load",function() {
+  document.body.appendChild(app.view)
+
+  setInterval(measureLatency, 2500)
+})
+
+window.addEventListener("keydown", function(ev) {
+  if ([32, 37, 38, 39, 40].indexOf(ev.keyCode) > -1) {
+    ev.preventDefault()
+  }
+  switch (ev.keyCode) {
+    case 37: // Left.
+        ws.send('[2,1]')
+        break
+    case 39: // Right.
+        ws.send('[2,2]')
+        break
+    case 40: // Down.
+        ws.send('[2,3]')
+        break
+    case 38: // Up.
+        ws.send('[2,4]')
+        break
+    default:
+  }
+});
+
+
+function measureLatency() {
+  ws.send(JSON.stringify([1, Date.now()]))
+}
+
+function handlePing(t) {
+  latency = Date.now() - t
+  info.text = "latency: " + latency + "ms"
+}
+
+let latency = 0
+
+</script>
